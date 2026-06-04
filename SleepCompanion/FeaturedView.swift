@@ -8,7 +8,7 @@ struct FeaturedView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        Text("精选")
+                        Text("首页")
                             .font(.system(size: 30, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
                             .padding(.top, 12)
@@ -29,7 +29,7 @@ struct FeaturedView: View {
                     .padding(20)
                 }
             }
-            .navigationTitle("精选")
+            .navigationTitle("首页")
             .sleepInlineNavigationTitle()
         }
     }

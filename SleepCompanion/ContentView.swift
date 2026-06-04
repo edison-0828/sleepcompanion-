@@ -1,51 +1,78 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedTab: AppTab = .sounds
+    @State private var selectedTab: AppTab = .home
+    @State private var isShowingProfile = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             selectedContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            profileButton
+
             BottomTabBar(selectedTab: $selectedTab)
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $isShowingProfile) {
+            SettingsView()
+        }
     }
 
     @ViewBuilder
     private var selectedContent: some View {
         switch selectedTab {
-        case .sounds:
-            SoundLibraryView()
+        case .home:
+            FeaturedView()
         case .sleepAid:
             SleepAidView()
+        case .sounds:
+            SoundLibraryView()
         case .breathing:
             BreathingView()
-        case .featured:
-            FeaturedView()
-        case .profile:
-            SettingsView()
+        }
+    }
+
+    private var profileButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+
+                Button {
+                    isShowingProfile = true
+                } label: {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Color.nightInk)
+                        .frame(width: 38, height: 38)
+                        .background(Color.warmGold)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 6)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 18)
+            }
+            .padding(.top, 10)
+
+            Spacer()
         }
     }
 }
 
 enum AppTab: String, CaseIterable, Identifiable {
+    case home = "首页"
+    case sleepAid = "睡眠"
     case sounds = "声音"
-    case sleepAid = "助眠"
     case breathing = "呼吸"
-    case featured = "精选"
-    case profile = "我的"
 
     var id: String { rawValue }
 
     var iconName: String {
         switch self {
-        case .sounds: "cloud.rain"
+        case .home: "house"
         case .sleepAid: "leaf"
+        case .sounds: "cloud.rain"
         case .breathing: "circle.circle"
-        case .featured: "seal"
-        case .profile: "person"
         }
     }
 }
