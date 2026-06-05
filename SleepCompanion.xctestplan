@@ -1,0 +1,38 @@
+{
+  "configurations" : [
+    {
+      "id" : "E36325C2-EAE8-4CA2-A5AB-ADE1896B1D87",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:SleepCompanion.xcodeproj",
+      "identifier" : "371191462FD1D353000D2739",
+      "name" : "SleepCompanion"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:SleepCompanion.xcodeproj",
+        "identifier" : "371191532FD1D355000D2739",
+        "name" : "SleepCompanionTests"
+      }
+    },
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:SleepCompanion.xcodeproj",
+        "identifier" : "3711915D2FD1D355000D2739",
+        "name" : "SleepCompanionUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
