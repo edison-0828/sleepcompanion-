@@ -27,6 +27,7 @@
 		371191472FD1D353000D2739 /* SleepCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		371191542FD1D355000D2739 /* SleepCompanionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SleepCompanionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3711915E2FD1D355000D2739 /* SleepCompanionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SleepCompanionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		371191B52FD1EA0B000D2739 /* SleepCompanion.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = SleepCompanion.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +76,7 @@
 		3711913E2FD1D353000D2739 = {
 			isa = PBXGroup;
 			children = (
+				371191B52FD1EA0B000D2739 /* SleepCompanion.xctestplan */,
 				371191492FD1D353000D2739 /* SleepCompanion */,
 				371191572FD1D355000D2739 /* SleepCompanionTests */,
 				371191612FD1D355000D2739 /* SleepCompanionUITests */,

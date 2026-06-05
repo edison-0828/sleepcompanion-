@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AVFoundation
 
 final class AudioManager: ObservableObject {
     @Published private(set) var activeSession: CompanionSession?
@@ -8,6 +9,7 @@ final class AudioManager: ObservableObject {
     @Published private(set) var totalSeconds = 0
 
     private var timer: Timer?
+    private var player: AVAudioPlayer?
 
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
@@ -22,11 +24,26 @@ final class AudioManager: ObservableObject {
 
     func prepare(session: CompanionSession) {
         guard activeSession?.id != session.id else { return }
+        let wasPlaying = isPlaying
+
+        if wasPlaying {
+            fadeOutCurrentAudio()
+        } else {
+            player?.stop()
+        }
+
         activeSession = session
         totalSeconds = session.durationMinutes * 60
         remainingSeconds = totalSeconds
-        isPlaying = false
         stopTimer()
+        configurePlayer(for: session)
+        isPlaying = false
+
+        if wasPlaying {
+            playPreparedAudio(resetTime: true)
+            isPlaying = true
+            startTimer()
+        }
     }
 
     func play(session: CompanionSession) {
@@ -40,11 +57,13 @@ final class AudioManager: ObservableObject {
         }
 
         isPlaying = true
+        playPreparedAudio(resetTime: false)
         startTimer()
     }
 
     func pause() {
         isPlaying = false
+        player?.pause()
         stopTimer()
     }
 
@@ -67,6 +86,7 @@ final class AudioManager: ObservableObject {
     func stop() {
         pause()
         remainingSeconds = 0
+        player?.currentTime = 0
     }
 
     private func startTimer() {
@@ -87,5 +107,58 @@ final class AudioManager: ObservableObject {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    private func configurePlayer(for session: CompanionSession) {
+        guard let audioName = audioResourceName(for: session),
+              let url = Bundle.main.url(forResource: audioName, withExtension: "m4a") else {
+            player = nil
+            return
+        }
+
+        do {
+            let sessionCategory = AVAudioSession.sharedInstance()
+            try sessionCategory.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try sessionCategory.setActive(true)
+
+            let audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer.numberOfLoops = -1
+            audioPlayer.prepareToPlay()
+            player = audioPlayer
+        } catch {
+            player = nil
+            print("Failed to prepare audio: \(error)")
+        }
+    }
+
+    private func audioResourceName(for session: CompanionSession) -> String? {
+        switch session.soundscape {
+        case "篝火": "campfire"
+        case "海洋": "ocean"
+        case "森林": "forest"
+        case "雨天": "rain"
+        default: nil
+        }
+    }
+
+    private func playPreparedAudio(resetTime: Bool) {
+        guard let player else { return }
+
+        if resetTime {
+            player.currentTime = 0
+        }
+
+        player.volume = 0
+        player.play()
+        player.setVolume(1, fadeDuration: 0.35)
+    }
+
+    private func fadeOutCurrentAudio() {
+        guard let player else { return }
+        player.setVolume(0, fadeDuration: 0.2)
+        let fadingPlayer = player
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            fadingPlayer.stop()
+        }
     }
 }
