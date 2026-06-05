@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct FeaturedView: View {
     @EnvironmentObject private var audioManager: AudioManager
@@ -15,43 +16,23 @@ struct FeaturedView: View {
         NavigationStack {
             GeometryReader { geometry in
                 let bottomBarReserve = geometry.safeAreaInsets.bottom + 106
-                let sceneHeight = max(geometry.size.height * 0.66, geometry.size.height - bottomBarReserve - 156)
 
-                VStack(spacing: 0) {
-                    ZStack(alignment: .topLeading) {
-                        sceneBackdrop
-                            .frame(height: sceneHeight)
-                            .clipShape(
-                                RoundedRectangle(cornerRadius: 0, style: .continuous)
-                            )
+                ZStack(alignment: .topLeading) {
+                    sceneBackdrop
 
-                        VStack(alignment: .leading, spacing: 0) {
-                            topSection
-                            Spacer()
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.top, max(18, geometry.safeAreaInsets.top + 4))
-                        .padding(.bottom, 24)
+                    VStack(alignment: .leading, spacing: 0) {
+                        topSection
+                        Spacer()
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, max(18, geometry.safeAreaInsets.top + 4))
 
-                    sceneFooter
+                    sceneTitleOverlay
                         .padding(.horizontal, 18)
-                        .padding(.top, 22)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.09, green: 0.11, blue: 0.16),
-                                    Color(red: 0.06, green: 0.08, blue: 0.12)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                        .padding(.bottom, bottomBarReserve + 96)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
-
-                .ignoresSafeArea(edges: .top)
-                .padding(.bottom, bottomBarReserve)
+                .ignoresSafeArea()
                 .background(Color.black)
             }
             .homeNavigationHidden()
@@ -73,43 +54,21 @@ struct FeaturedView: View {
     }
 
     private var topSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(greetingText)
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(greetingText)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
 
-                    weekdayStrip
-                }
-
-                Spacer()
-
-                sceneControls
-                    .padding(.top, 10)
-                    .padding(.trailing, 74)
+                weekdayStrip
             }
 
-            Button {
-            } label: {
-                HStack(spacing: 10) {
-                    Text("🎁")
-                    Text("七天免费试用")
-                        .font(.subheadline.weight(.medium))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .frame(height: 44)
-                .background(.white.opacity(0.12))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(.white.opacity(0.18), lineWidth: 1)
-                }
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
+            Spacer()
+
+            sceneControls
+                .padding(.top, 6)
+                .padding(.trailing, 74)
         }
     }
 
@@ -117,8 +76,8 @@ struct FeaturedView: View {
         HStack(spacing: 12) {
             ForEach(Array(weekdays.enumerated()), id: \.offset) { index, item in
                 Text(item)
-                    .font(.system(size: 18, weight: index == 4 ? .bold : .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(index == 4 ? 0.96 : 0.48))
+                    .font(.system(size: 15, weight: index == 4 ? .bold : .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(index == 4 ? 0.94 : 0.42))
             }
         }
     }
@@ -149,98 +108,50 @@ struct FeaturedView: View {
             }
             .buttonStyle(.plain)
         }
-        .background(.white.opacity(0.12))
+        .background(.white.opacity(0.10))
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(.white.opacity(0.22), lineWidth: 1)
+                .stroke(.white.opacity(0.18), lineWidth: 1)
         }
         .clipShape(Capsule())
     }
 
-    private var sceneFooter: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(selectedScene.title)
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .opacity(isSceneTitleVisible ? 1 : 0)
-                .frame(height: 40, alignment: .leading)
-                .animation(.easeOut(duration: 0.28), value: isSceneTitleVisible)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(timeText(selectedScene))
-                    .font(.system(size: 40, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-            }
-
-            HStack(alignment: .center) {
-                HStack(spacing: 8) {
-                    ForEach(Array(HomeSoundScene.scenes.enumerated()), id: \.element.id) { index, scene in
-                        Capsule()
-                            .fill(scene.id == selectedSceneID ? .white : .white.opacity(0.26))
-                            .frame(width: scene.id == selectedSceneID ? 22 : 8, height: 8)
-                            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: selectedSceneID)
-                    }
-                }
-
-                Spacer()
-
-                Text(sceneStatusText)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+    private var sceneTitleOverlay: some View {
+        VStack(spacing: 4) {
+            ForEach(Array(selectedScene.title), id: \.self) { character in
+                Text(String(character))
+                    .font(.system(size: 34, weight: .light, design: .rounded))
                     .foregroundStyle(.white.opacity(0.72))
+                    .shadow(color: .black.opacity(0.14), radius: 12, x: 0, y: 6)
             }
         }
-        .padding(20)
-        .background(.white.opacity(0.06))
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(.white.opacity(0.08), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .opacity(isSceneTitleVisible ? 1 : 0)
+        .scaleEffect(isSceneTitleVisible ? 1 : 0.96)
+        .blur(radius: isSceneTitleVisible ? 0 : 4)
+        .animation(.easeOut(duration: 0.32), value: isSceneTitleVisible)
     }
 
     private var sceneBackdrop: some View {
         ZStack {
             ForEach(HomeSoundScene.scenes) { scene in
-                Image(scene.imageName)
-                    .resizable()
-                    .scaledToFill()
+                SceneBackdropLayer(scene: scene, isSelected: scene.id == selectedSceneID)
+                    .ignoresSafeArea()
+                    .scaleEffect(scene.id == selectedSceneID ? 1.0 : 1.04)
+                    .offset(x: sceneOffset(for: scene))
                     .opacity(scene.id == selectedSceneID ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.45), value: selectedSceneID)
-            }
-
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.08),
-                                Color.black.opacity(0.02),
-                                Color.black.opacity(0.12),
-                                Color.black.opacity(0.30)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(height: 330)
-                    .overlay {
-                        WaterTexture(color: .white.opacity(0.16))
-                            .opacity(0.70)
-                    }
+                    .animation(.easeInOut(duration: 0.52), value: selectedSceneID)
             }
 
             LinearGradient(
                 colors: [
                     .white.opacity(0.08),
                     .clear,
-                    Color.black.opacity(0.42)
+                    Color.black.opacity(0.12)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .ignoresSafeArea()
         }
         .animation(.easeInOut(duration: 0.38), value: selectedSceneID)
     }
@@ -248,14 +159,6 @@ struct FeaturedView: View {
     private var greetingText: String {
         let hour = Calendar.current.component(.hour, from: Date())
         return hour >= 5 && hour < 12 ? "早上好" : "晚上好"
-    }
-
-    private func timeText(_ scene: HomeSoundScene) -> String {
-        audioManager.activeSession?.id == scene.session.id ? audioManager.remainingTimeText : scene.defaultTime
-    }
-
-    private var sceneStatusText: String {
-        audioManager.isPlaying && audioManager.activeSession?.id == selectedScene.session.id ? "轻点暂停" : "轻点播放"
     }
 
     private var sceneSwipeGesture: some Gesture {
@@ -281,41 +184,24 @@ struct FeaturedView: View {
         selectedSceneID = HomeSoundScene.scenes[nextIndex].id
     }
 
+    private func sceneOffset(for scene: HomeSoundScene) -> CGFloat {
+        let delta = sceneIndex(for: scene.id) - sceneIndex(for: selectedSceneID)
+        if scene.id == selectedSceneID { return 0 }
+        return CGFloat(delta) * 28
+    }
+
+    private func sceneIndex(for id: HomeSoundScene.ID) -> Int {
+        HomeSoundScene.scenes.firstIndex(where: { $0.id == id }) ?? 0
+    }
+
     private func revealSceneTitleTemporarily() {
         let currentSceneID = selectedSceneID
         isSceneTitleVisible = true
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
             guard selectedSceneID == currentSceneID else { return }
-            withAnimation(.easeOut(duration: 0.3)) {
+            withAnimation(.easeOut(duration: 0.32)) {
                 isSceneTitleVisible = false
-            }
-        }
-    }
-}
-
-private struct WaterTexture: View {
-    let color: Color
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                ForEach(0..<5, id: \.self) { index in
-                    Path { path in
-                        let width = geometry.size.width
-                        let y = 34 + CGFloat(index) * 50
-
-                        path.move(to: CGPoint(x: 0, y: y))
-
-                        for step in stride(from: 0, through: width + 40, by: 40) {
-                            let x = step
-                            let wave = sin((x / width) * .pi * 2 + CGFloat(index)) * 10
-                            path.addLine(to: CGPoint(x: x, y: y + wave))
-                        }
-                    }
-                    .stroke(color.opacity(0.18), lineWidth: index == 0 ? 2 : 1.2)
-                    .blur(radius: index == 0 ? 0.5 : 1.4)
-                }
             }
         }
     }
@@ -326,6 +212,7 @@ private struct HomeSoundScene: Identifiable {
     let title: String
     let defaultTime: String
     let imageName: String
+    let videoResourceName: String?
     let session: CompanionSession
 
     static let scenes: [HomeSoundScene] = [
@@ -333,6 +220,7 @@ private struct HomeSoundScene: Identifiable {
             title: "篝火",
             defaultTime: "45:00",
             imageName: "HomeCampfire",
+            videoResourceName: "campfire-loop",
             session: CompanionSession(
                 title: "篝火守夜",
                 subtitle: "微弱火声持续陪伴，适合慢慢躺平。",
@@ -348,6 +236,7 @@ private struct HomeSoundScene: Identifiable {
             title: "海洋",
             defaultTime: "30:00",
             imageName: "HomeOcean",
+            videoResourceName: nil,
             session: CompanionSession(
                 title: "海浪靠岸",
                 subtitle: "海浪规律起伏，适合让节奏慢下来。",
@@ -363,6 +252,7 @@ private struct HomeSoundScene: Identifiable {
             title: "森林",
             defaultTime: "35:00",
             imageName: "HomeForest",
+            videoResourceName: nil,
             session: CompanionSession(
                 title: "林间夜色",
                 subtitle: "树叶和微风保持轻微变化，不会太单调。",
@@ -378,6 +268,7 @@ private struct HomeSoundScene: Identifiable {
             title: "雨天",
             defaultTime: "40:00",
             imageName: "HomeRain",
+            videoResourceName: nil,
             session: CompanionSession(
                 title: "窗边细雨",
                 subtitle: "有层次的雨声，像远远落在窗外。",
@@ -390,6 +281,73 @@ private struct HomeSoundScene: Identifiable {
             )
         )
     ]
+}
+
+private struct SceneBackdropLayer: View {
+    let scene: HomeSoundScene
+    let isSelected: Bool
+
+    var body: some View {
+        Group {
+            if let videoResourceName = scene.videoResourceName, isSelected {
+                LoopingBackgroundVideoView(resourceName: videoResourceName)
+            } else {
+                Image(scene.imageName)
+                    .resizable()
+                    .scaledToFill()
+            }
+        }
+    }
+}
+
+private struct LoopingBackgroundVideoView: UIViewRepresentable {
+    let resourceName: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(resourceName: resourceName)
+    }
+
+    func makeUIView(context: Context) -> PlayerContainerView {
+        let view = PlayerContainerView()
+        view.playerLayer.videoGravity = .resizeAspectFill
+        view.playerLayer.player = context.coordinator.player
+        context.coordinator.player.play()
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerContainerView, context: Context) {
+        uiView.playerLayer.player = context.coordinator.player
+        context.coordinator.player.play()
+    }
+
+    static func dismantleUIView(_ uiView: PlayerContainerView, coordinator: Coordinator) {
+        coordinator.player.pause()
+        uiView.playerLayer.player = nil
+    }
+
+    final class Coordinator {
+        let player = AVQueuePlayer()
+        private var looper: AVPlayerLooper?
+
+        init(resourceName: String) {
+            player.isMuted = true
+            player.actionAtItemEnd = .none
+
+            guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp4") else { return }
+
+            let asset = AVURLAsset(url: url)
+            let item = AVPlayerItem(asset: asset)
+            looper = AVPlayerLooper(player: player, templateItem: item)
+        }
+    }
+}
+
+private final class PlayerContainerView: UIView {
+    override static var layerClass: AnyClass { AVPlayerLayer.self }
+
+    var playerLayer: AVPlayerLayer {
+        layer as! AVPlayerLayer
+    }
 }
 
 #Preview {

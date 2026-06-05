@@ -2,14 +2,23 @@ import Foundation
 import Combine
 import AVFoundation
 
+@MainActor
 final class AudioManager: ObservableObject {
     @Published private(set) var activeSession: CompanionSession?
     @Published private(set) var isPlaying = false
     @Published private(set) var remainingSeconds = 0
     @Published private(set) var totalSeconds = 0
 
+    private let engine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private var currentBuffer: AVAudioPCMBuffer?
     private var timer: Timer?
-    private var player: AVAudioPlayer?
+    private var fadeTimer: Timer?
+    init() {
+        engine.attach(playerNode)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: nil)
+        engine.mainMixerNode.outputVolume = 1
+    }
 
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
@@ -27,22 +36,13 @@ final class AudioManager: ObservableObject {
         let wasPlaying = isPlaying
 
         if wasPlaying {
-            fadeOutCurrentAudio()
+            fadeOutCurrentAudio {
+                self.load(session: session)
+                self.startPlayback(resetTime: true, fadeDuration: 0.8)
+            }
         } else {
-            player?.stop()
-        }
-
-        activeSession = session
-        totalSeconds = session.durationMinutes * 60
-        remainingSeconds = totalSeconds
-        stopTimer()
-        configurePlayer(for: session)
-        isPlaying = false
-
-        if wasPlaying {
-            playPreparedAudio(resetTime: true)
-            isPlaying = true
-            startTimer()
+            stopNode(resetTimeline: true)
+            load(session: session)
         }
     }
 
@@ -56,15 +56,25 @@ final class AudioManager: ObservableObject {
             return
         }
 
-        isPlaying = true
-        playPreparedAudio(resetTime: false)
-        startTimer()
+        startPlayback(resetTime: false, fadeDuration: 0.8)
     }
 
     func pause() {
         isPlaying = false
-        player?.pause()
-        stopTimer()
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+
+        guard playerNode.isPlaying else {
+            stopTimer()
+            return
+        }
+
+        let currentLevel = playerNode.volume
+        fadeVolume(from: currentLevel, to: 0.0, duration: 0.35) { [weak self] in
+            guard let self else { return }
+            self.playerNode.pause()
+            self.stopTimer()
+        }
     }
 
     func toggle(session: CompanionSession) {
@@ -86,20 +96,82 @@ final class AudioManager: ObservableObject {
     func stop() {
         pause()
         remainingSeconds = 0
-        player?.currentTime = 0
+        stopNode(resetTimeline: true)
+    }
+
+    private func load(session: CompanionSession) {
+        activeSession = session
+        totalSeconds = session.durationMinutes * 60
+        remainingSeconds = totalSeconds
+        stopTimer()
+        currentBuffer = makeBuffer(for: session)
+        playerNode.volume = 0
+        scheduleCurrentBuffer()
+    }
+
+    private func startPlayback(resetTime: Bool, fadeDuration: TimeInterval) {
+        guard currentBuffer != nil else { return }
+
+        do {
+            try configureAudioSession()
+            try startEngineIfNeeded()
+        } catch {
+            print("Failed to start audio engine: \(error)")
+            return
+        }
+
+        if resetTime {
+            remainingSeconds = totalSeconds
+            stopNode(resetTimeline: true)
+            scheduleCurrentBuffer()
+        }
+
+        guard !playerNode.isPlaying else {
+            isPlaying = true
+            return
+        }
+
+        playerNode.play()
+        isPlaying = true
+        startTimer()
+        fadeVolume(
+            from: playerNode.volume,
+            to: playbackVolume(for: activeSession),
+            duration: fadeDuration,
+            completion: nil
+        )
+    }
+
+    private func scheduleCurrentBuffer() {
+        guard let currentBuffer else { return }
+        playerNode.stop()
+        playerNode.scheduleBuffer(currentBuffer, at: nil, options: .loops, completionHandler: nil)
+    }
+
+    private func stopNode(resetTimeline: Bool) {
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+        playerNode.stop()
+        playerNode.volume = 0
+
+        if resetTimeline {
+            stopTimer()
+        }
     }
 
     private func startTimer() {
         stopTimer()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
 
-            if remainingSeconds > 0 {
-                remainingSeconds -= 1
-            }
+                if self.remainingSeconds > 0 {
+                    self.remainingSeconds -= 1
+                }
 
-            if remainingSeconds == 0 {
-                pause()
+                if self.remainingSeconds == 0 {
+                    self.pause()
+                }
             }
         }
     }
@@ -109,25 +181,37 @@ final class AudioManager: ObservableObject {
         timer = nil
     }
 
-    private func configurePlayer(for session: CompanionSession) {
+    private func makeBuffer(for session: CompanionSession) -> AVAudioPCMBuffer? {
         guard let audioName = audioResourceName(for: session),
               let url = Bundle.main.url(forResource: audioName, withExtension: "m4a") else {
-            player = nil
-            return
+            return nil
         }
 
         do {
-            let sessionCategory = AVAudioSession.sharedInstance()
-            try sessionCategory.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            try sessionCategory.setActive(true)
+            let file = try AVAudioFile(forReading: url)
+            let frameCount = AVAudioFrameCount(file.length)
 
-            let audioPlayer = try AVAudioPlayer(contentsOf: url)
-            audioPlayer.numberOfLoops = -1
-            audioPlayer.prepareToPlay()
-            player = audioPlayer
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount) else {
+                return nil
+            }
+
+            try file.read(into: buffer)
+            return buffer
         } catch {
-            player = nil
-            print("Failed to prepare audio: \(error)")
+            print("Failed to create audio buffer: \(error)")
+            return nil
+        }
+    }
+
+    private func configureAudioSession() throws {
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try audioSession.setActive(true)
+    }
+
+    private func startEngineIfNeeded() throws {
+        if !engine.isRunning {
+            try engine.start()
         }
     }
 
@@ -141,24 +225,75 @@ final class AudioManager: ObservableObject {
         }
     }
 
-    private func playPreparedAudio(resetTime: Bool) {
-        guard let player else { return }
+    private func playbackVolume(for session: CompanionSession?) -> Float {
+        guard let session else { return 0.62 }
 
-        if resetTime {
-            player.currentTime = 0
+        switch session.soundscape {
+        case "篝火":
+            return 0.7
+        case "海洋":
+            return 0.58
+        case "森林":
+            return 0.6
+        case "雨天":
+            return 0.6
+        default:
+            return 0.62
         }
-
-        player.volume = 0
-        player.play()
-        player.setVolume(1, fadeDuration: 0.35)
     }
 
-    private func fadeOutCurrentAudio() {
-        guard let player else { return }
-        player.setVolume(0, fadeDuration: 0.2)
-        let fadingPlayer = player
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            fadingPlayer.stop()
+    private func fadeOutCurrentAudio(completion: @escaping @MainActor () -> Void) {
+        guard playerNode.isPlaying else {
+            stopNode(resetTimeline: false)
+            completion()
+            return
+        }
+
+        let currentLevel = playerNode.volume
+        fadeVolume(from: currentLevel, to: 0.0, duration: 0.35) { [weak self] in
+            guard let self else { return }
+            self.stopNode(resetTimeline: false)
+            completion()
+        }
+    }
+
+    private func fadeVolume(
+        from startVolume: Float,
+        to endVolume: Float,
+        duration: TimeInterval,
+        completion: (@MainActor () -> Void)?
+    ) {
+        fadeTimer?.invalidate()
+
+        guard duration > 0 else {
+            playerNode.volume = endVolume
+            completion?()
+            return
+        }
+
+        let stepInterval = 0.05
+        let steps = max(1, Int(duration / stepInterval))
+        var currentStep = 0
+
+        playerNode.volume = startVolume
+        fadeTimer = Timer.scheduledTimer(withTimeInterval: stepInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    return
+                }
+
+                currentStep += 1
+                let progress = min(1, Float(currentStep) / Float(steps))
+                let easedProgress = 1 - pow(1 - progress, 2)
+                self.playerNode.volume = startVolume + (endVolume - startVolume) * easedProgress
+
+                if progress >= 1 {
+                    self.fadeTimer?.invalidate()
+                    self.fadeTimer = nil
+                    self.playerNode.volume = endVolume
+                    completion?()
+                }
+            }
         }
     }
 }
