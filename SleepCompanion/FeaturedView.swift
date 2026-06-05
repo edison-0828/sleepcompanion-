@@ -10,7 +10,7 @@ struct FeaturedView: View {
         HomeSoundScene.scenes.first(where: { $0.id == selectedSceneID }) ?? HomeSoundScene.scenes[0]
     }
 
-    private let weekdays = ["一", "二", "三", "四", "今", "六", "日"]
+    private let weekdaySymbols = ["一", "二", "三", "四", "五", "六", "日"]
 
     var body: some View {
         NavigationStack {
@@ -74,12 +74,23 @@ struct FeaturedView: View {
 
     private var weekdayStrip: some View {
         HStack(spacing: 12) {
-            ForEach(Array(weekdays.enumerated()), id: \.offset) { index, item in
-                Text(item)
-                    .font(.system(size: 15, weight: index == 4 ? .bold : .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(index == 4 ? 0.94 : 0.42))
+            ForEach(Array(displayWeekdays.enumerated()), id: \.offset) { index, item in
+                Text(item.title)
+                    .font(.system(size: 15, weight: item.isToday ? .bold : .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(item.isToday ? 0.94 : 0.42))
             }
         }
+    }
+
+    private var displayWeekdays: [WeekdayItem] {
+        weekdaySymbols.enumerated().map { index, symbol in
+            WeekdayItem(title: index == todayWeekdayIndex ? "今" : symbol, isToday: index == todayWeekdayIndex)
+        }
+    }
+
+    private var todayWeekdayIndex: Int {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        return (weekday + 5) % 7
     }
 
     private var sceneControls: some View {
@@ -207,6 +218,11 @@ struct FeaturedView: View {
     }
 }
 
+private struct WeekdayItem {
+    let title: String
+    let isToday: Bool
+}
+
 private struct HomeSoundScene: Identifiable {
     let id = UUID()
     let title: String
@@ -288,20 +304,93 @@ private struct SceneBackdropLayer: View {
     let isSelected: Bool
 
     var body: some View {
-        Group {
-            if let videoResourceName = scene.videoResourceName, isSelected {
-                LoopingBackgroundVideoView(resourceName: videoResourceName)
-            } else {
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
                 Image(scene.imageName)
                     .resizable()
                     .scaledToFill()
+
+                if let videoResourceName = scene.videoResourceName {
+                    LoopingBackgroundVideoView(
+                        resourceName: videoResourceName,
+                        isPlaying: isSelected
+                    )
+                    .scaleEffect(1.02)
+                    .frame(width: geometry.size.width * 0.62, height: geometry.size.height * 0.34)
+                    .offset(y: geometry.size.height * 0.04)
+                    .opacity(isSelected ? 0.42 : 0)
+                    .mask(campfireMotionMask)
+                    .animation(.easeInOut(duration: 0.28), value: isSelected)
+                }
+
+                if scene.videoResourceName != nil {
+                    campfireToneOverlay
+                }
             }
         }
+        .clipped()
+    }
+
+    private var campfireToneOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.20)
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.34),
+                    Color.black.opacity(0.10),
+                    Color.black.opacity(0.30)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            LinearGradient(
+                colors: [
+                    Color(red: 0.30, green: 0.17, blue: 0.08).opacity(0.22),
+                    .clear,
+                    Color(red: 0.18, green: 0.10, blue: 0.05).opacity(0.16)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var campfireMotionMask: some View {
+        ZStack {
+            RadialGradient(
+                colors: [
+                    Color.white,
+                    Color.white.opacity(0.84),
+                    Color.white.opacity(0.34),
+                    .clear
+                ],
+                center: UnitPoint(x: 0.5, y: 0.78),
+                startRadius: 26,
+                endRadius: 150
+            )
+
+            LinearGradient(
+                colors: [
+                    .clear,
+                    .clear,
+                    Color.white.opacity(0.34),
+                    Color.white
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .blur(radius: 10)
+        .compositingGroup()
     }
 }
 
 private struct LoopingBackgroundVideoView: UIViewRepresentable {
     let resourceName: String
+    let isPlaying: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(resourceName: resourceName)
@@ -311,13 +400,13 @@ private struct LoopingBackgroundVideoView: UIViewRepresentable {
         let view = PlayerContainerView()
         view.playerLayer.videoGravity = .resizeAspectFill
         view.playerLayer.player = context.coordinator.player
-        context.coordinator.player.play()
+        context.coordinator.updatePlayback(isPlaying: isPlaying)
         return view
     }
 
     func updateUIView(_ uiView: PlayerContainerView, context: Context) {
         uiView.playerLayer.player = context.coordinator.player
-        context.coordinator.player.play()
+        context.coordinator.updatePlayback(isPlaying: isPlaying)
     }
 
     static func dismantleUIView(_ uiView: PlayerContainerView, coordinator: Coordinator) {
@@ -338,6 +427,15 @@ private struct LoopingBackgroundVideoView: UIViewRepresentable {
             let asset = AVURLAsset(url: url)
             let item = AVPlayerItem(asset: asset)
             looper = AVPlayerLooper(player: player, templateItem: item)
+        }
+
+        func updatePlayback(isPlaying: Bool) {
+            if isPlaying {
+                player.play()
+            } else {
+                player.pause()
+                player.seek(to: .zero)
+            }
         }
     }
 }
